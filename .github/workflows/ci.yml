@@ -62,7 +62,14 @@ jobs:
           if (-not (Test-Path (Join-Path $modulesSource "steam-user/package.json"))) {
             throw "npm did not install steam-user into the Rich Presence runtime"
           }
-          Copy-Item -Path $modulesSource -Destination (Join-Path $destination "node_modules") -Recurse -Force
+          $modulesDestination = Join-Path $destination "node_modules"
+          New-Item -ItemType Directory -Force -Path $modulesDestination | Out-Null
+          & robocopy.exe $modulesSource $modulesDestination /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
+          $copyExitCode = $LASTEXITCODE
+          if ($copyExitCode -ge 8) {
+            throw "Failed to copy Rich Presence node_modules (robocopy exit $copyExitCode)"
+          }
+          $global:LASTEXITCODE = 0
           foreach ($required in @("node.exe", "index.cjs")) {
             if (-not (Test-Path (Join-Path $destination $required))) {
               throw "Missing bundled Rich Presence runtime file: $required"
