@@ -28,7 +28,7 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
-    "resources": ["resources/*"],
+    "resources": ["resources/rich-presence-helper/"],
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
