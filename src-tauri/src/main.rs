@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod steam;
+
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -7,6 +9,7 @@ use tauri::{
     Manager,
     WindowEvent,
 };
+use steam::MonitorState;
 
 fn tray_icon() -> Image<'static> {
     let mut rgba = vec![0_u8; 16 * 16 * 4];
@@ -48,6 +51,7 @@ fn tray_icon() -> Image<'static> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .manage(MonitorState::default())
         .setup(|app| {
             let open_item =
                 MenuItem::with_id(app, "open", "Open SteamTracker", true, None::<&str>)?;
@@ -71,6 +75,11 @@ fn main() {
                 })
                 .build(app)?;
 
+            let monitor_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                steam::monitor_loop(monitor_app).await;
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -79,6 +88,14 @@ fn main() {
                 let _ = window.hide();
             }
         })
+        .invoke_handler(tauri::generate_handler![
+            steam::save_api_key,
+            steam::has_api_key,
+            steam::get_targets,
+            steam::get_snapshots,
+            steam::add_target,
+            steam::remove_target
+        ])
         .run(tauri::generate_context!())
         .expect("error while running SteamTracker");
 }
