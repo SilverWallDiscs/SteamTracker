@@ -55,10 +55,26 @@ jobs:
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
           tar -cf "$destination/node_modules.tar" -C "$helperRuntime" "node_modules"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
+            if (-not (Test-Path (Join-Path $destination $required))) {
+              throw "Missing bundled Rich Presence runtime file: $required"
+            }
+          }
           Get-ChildItem $destination | Select-Object Name,Length
 
       - name: Build Windows installer
         run: npm run tauri -- build
+
+      - name: Verify packaged Rich Presence runtime
+        shell: pwsh
+        run: |
+          $runtime = "src-tauri/target/release/resources/rich-presence-helper"
+          foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
+            if (-not (Test-Path (Join-Path $runtime $required))) {
+              throw "The Tauri bundle is missing Rich Presence file: $required"
+            }
+          }
+          Get-ChildItem $runtime | Select-Object Name,Length
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
