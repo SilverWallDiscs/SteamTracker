@@ -46,7 +46,7 @@ fn tray_icon() -> Image<'static> {
         }
     }
 
-    Image::new_owned(16, 16, rgba)
+    Image::new_owned(rgba, 16, 16)
 }
 
 fn main() {
