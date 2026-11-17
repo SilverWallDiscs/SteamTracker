@@ -137,3 +137,112 @@ footer { margin-top: 28px; color: #667587; font-size: 8px; gap: 16px; }
   .remove-button { margin-left: auto; }
   footer { align-items: flex-start; flex-direction: column; }
 }
+
+/* Rich Presence and Steam QR authentication */
+.connected-pill {
+  color: #7dd9a6;
+  border-color: #386d58;
+  background: #10271f;
+}
+.rich-panel { margin-top: 15px; }
+.bridge-login {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  margin-top: 20px;
+}
+.bridge-copy { max-width: 620px; }
+.bridge-copy h3 { margin: 0 0 8px; font-size: 15px; }
+.bridge-copy p { color: #91a0b0; font-size: 11px; line-height: 1.75; margin: 0 0 14px; }
+.bridge-copy button, .secondary-button {
+  border: 1px solid #5599c8;
+  border-radius: 8px;
+  color: #07131e;
+  background: #82c8f4;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.bridge-copy button:disabled { opacity: .55; }
+.qr-wrap {
+  flex: 0 0 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #304153;
+  border-radius: 12px;
+  background: #f4f7fa;
+}
+.qr-wrap img { display: block; width: 150px; height: 150px; }
+.qr-wrap span { color: #26394b; font-family: "DM Mono", monospace; font-size: 8px; text-align: center; }
+.bridge-error { margin-top: 12px !important; color: #f3b3b7 !important; }
+.bridge-connected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 18px;
+}
+.bridge-identity { display: flex; align-items: center; gap: 12px; }
+.bridge-identity .state-dot { flex: 0 0 8px; }
+.bridge-identity > div { display: flex; flex-direction: column; gap: 4px; }
+.bridge-identity strong { color: #e0eaf2; font-size: 13px; }
+.bridge-identity span:not(.state-dot) { color: #8292a3; font-family: "DM Mono", monospace; font-size: 9px; }
+.secondary-button {
+  color: #c1d8e9;
+  background: #1a2a39;
+  border-color: #3c596f;
+}
+.rich-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #263342;
+  margin-top: 19px;
+  padding-top: 13px;
+  color: #75879a;
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+  line-height: 1.7;
+}
+.rich-legend strong { color: #9bcff3; font-weight: 500; }
+.rich-state {
+  color: #82c8f4;
+  font-size: 9px;
+  font-weight: 800;
+}
+.raw-presence {
+  flex: 1 0 100%;
+  margin-left: 55px;
+  margin-top: 4px;
+  color: #80b8df;
+  font-size: 10px;
+}
+.raw-presence summary { cursor: pointer; }
+.raw-localized {
+  margin-top: 10px;
+  color: #b4c3d1;
+  font-size: 11px;
+}
+.raw-presence pre {
+  max-height: 180px;
+  overflow: auto;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #273849;
+  background: #0a1119;
+  color: #91b9d5;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .bridge-login, .bridge-connected { align-items: stretch; flex-direction: column; }
+  .qr-wrap { align-self: flex-start; }
+  .bridge-connected .secondary-button { align-self: flex-start; }
+}
