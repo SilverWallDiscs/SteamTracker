@@ -40,9 +40,12 @@ jobs:
           $destination = "src-tauri/resources/rich-presence-helper"
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
           Copy-Item "rich-presence-helper/index.cjs" "$destination/index.cjs" -Force
-          Copy-Item "rich-presence-helper/node_modules" "$destination/node_modules" -Recurse -Force
+          robocopy "rich-presence-helper/node_modules" "$destination/node_modules" /MIR /NFL /NDL /NJH /NJS /NP
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
           $nodeExecutable = (Get-Command node).Source
           Copy-Item $nodeExecutable "$destination/node.exe" -Force
+          Write-Host "Bundled Node runtime: $nodeExecutable"
+          Write-Host "Bundled helper file count:" (Get-ChildItem $destination -File -Recurse | Measure-Object).Count
 
       - name: Build Windows installer
         run: npm run tauri -- build
