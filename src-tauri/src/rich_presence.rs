@@ -23,6 +23,17 @@ struct BridgeInner {
     init_error: Option<String>,
 }
 
+impl Drop for BridgeInner {
+    fn drop(&mut self) {
+        if let Ok(slot) = self._child.get_mut() {
+            if let Some(child) = slot.as_mut() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct RichPresenceBridge {
     inner: Arc<BridgeInner>,
