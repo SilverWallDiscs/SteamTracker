@@ -18,7 +18,7 @@ Steamworks exposes `ISteamFriends::GetFriendRichPresence` for Rich Presence data
 
 ## Project status
 
-Early scaffold. The app shell and architecture are being established before implementing and testing Steam connectivity.
+Early MVP. The app shell, system tray, secure API-key storage, profile management, Steam Web API polling, state transitions, and notification event pipeline are in place. The Windows CI workflow is included; the Rich Presence bridge and ARC Raiders-specific state parsing remain experimental work.
 
 ## Planned stack
 
