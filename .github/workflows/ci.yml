@@ -49,12 +49,18 @@ jobs:
         shell: pwsh
         run: |
           $helperRuntime = Join-Path $env:RUNNER_TEMP "SteamTrackerHelper"
-          $destination = "src-tauri/resources/rich-presence-helper"
+          $destination = Join-Path $PWD "src-tauri/resources/rich-presence-helper"
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
+          $destination = (Resolve-Path $destination).Path
+          $helperRuntime = (Resolve-Path $helperRuntime).Path
           Copy-Item "$helperRuntime/index.cjs" "$destination/index.cjs" -Force
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
-          tar -cf "$destination/node_modules.tar" -C "$helperRuntime" "node_modules"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $archive = Join-Path $destination "node_modules.tar"
+          if (Test-Path $archive) { Remove-Item $archive -Force }
+          & tar.exe -cf $archive -C $helperRuntime "node_modules"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to archive Rich Presence dependencies (exit $LASTEXITCODE)" }
+          & tar.exe -tf $archive | Select-Object -First 5
+          if ($LASTEXITCODE -ne 0) { throw "The Rich Presence dependency archive is invalid" }
           foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
             if (-not (Test-Path (Join-Path $destination $required))) {
               throw "Missing bundled Rich Presence runtime file: $required"
