@@ -2,11 +2,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 
 type TargetType = "friend" | "public";
 type TrackedTarget = {
@@ -83,7 +78,26 @@ function App() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [richPresence, setRichPresence] = useState<Record<string, RichPresenceView>>({});
   const [lastRichCheck, setLastRichCheck] = useState<number | null>(null);
+  const [notificationStatus, setNotificationStatus] = useState("");
   const previousRichState = useRef<Record<string, string>>({});
+
+  async function sendDesktopNotification(title: string, body: string) {
+    try {
+      await invoke("send_desktop_notification", { title, body });
+      setNotificationStatus("Notificación enviada a Windows correctamente.");
+    } catch (cause) {
+      const message = "No se pudo mostrar la notificación de Windows: " + String(cause);
+      setNotificationStatus(message);
+      console.error(message);
+    }
+  }
+
+  async function handleTestNotification() {
+    await sendDesktopNotification(
+      "SteamTracker",
+      "Las notificaciones de Windows están funcionando."
+    );
+  }
 
   async function reloadData() {
     try {
@@ -129,15 +143,7 @@ function App() {
     listen<SteamEvent>("steamtracker:event", ({ payload }) => {
       setRecentEvents((current) => [payload, ...current].slice(0, 5));
       void reloadData();
-      void (async () => {
-        try {
-          let permitted = await isPermissionGranted();
-          if (!permitted) permitted = (await requestPermission()) === "granted";
-          if (permitted) sendNotification({ title: payload.title, body: payload.message });
-        } catch (cause) {
-          console.error("No se pudo mostrar la notificación:", cause);
-        }
-      })();
+      void sendDesktopNotification(payload.title, payload.message);
     }).then((stopListening) => {
       if (mounted) unlisten = stopListening;
       else stopListening();
@@ -183,15 +189,7 @@ function App() {
           if (previous && previous !== signature) {
             const target = targets.find((item) => item.steamId === steamId);
             const message = (target?.displayName || steamId) + ": " + view.stateLabel;
-            void (async () => {
-              try {
-                let permitted = await isPermissionGranted();
-                if (!permitted) permitted = (await requestPermission()) === "granted";
-                if (permitted) sendNotification({ title: "ARC Raiders · Rich Presence", body: message });
-              } catch (cause) {
-                console.error("No se pudo mostrar la notificación Rich Presence:", cause);
-              }
-            })();
+            void sendDesktopNotification("ARC Raiders · Rich Presence", message);
           }
           previousRichState.current[steamId] = signature;
         }
@@ -512,6 +510,12 @@ function App() {
         <div className="rich-legend">
           <span>Estados reconocidos automáticamente: <strong>In Speranza</strong>, <strong>In Queue</strong>, <strong>In Round</strong>.</span>
           <span>{lastRichCheck ? "Última consulta: " + new Date(lastRichCheck).toLocaleTimeString() : "Esperando datos de Steam..."}</span>
+        </div>
+        <div className="notification-test-row">
+          <button className="secondary-button" type="button" onClick={() => void handleTestNotification()}>
+            Enviar notificación de prueba a Windows
+          </button>
+          {notificationStatus && <span className="notification-status">{notificationStatus}</span>}
         </div>
         <p className="form-note">
           La clasificación busca esas palabras en el texto localizado y los campos originales. Los valores sin clasificar
