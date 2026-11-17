@@ -1,6 +1,5 @@
 use keyring::Entry;
 use rand::{rngs::OsRng, RngCore};
-use flate2::read::GzDecoder;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::{
@@ -160,7 +159,7 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
     let bundled_dir = resource_dir.join("rich-presence-helper");
 
     let (node, script_path, runtime_dir) = if bundled_dir.join("node.exe").is_file()
-        && bundled_dir.join("node_modules.tar.gz").is_file()
+        && bundled_dir.join("node_modules.tar").is_file()
         && bundled_dir.join("index.cjs").is_file()
     {
         let app_data = app.path().app_data_dir()
@@ -177,10 +176,9 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
         }
 
         if !modules_dir.is_dir() {
-            let archive_file = fs::File::open(bundled_dir.join("node_modules.tar.gz"))
+            let archive_file = fs::File::open(bundled_dir.join("node_modules.tar"))
                 .map_err(|error| format!("No se pudo abrir las dependencias Rich Presence: {error}"))?;
-            let decoder = GzDecoder::new(archive_file);
-            let mut archive = Archive::new(decoder);
+            let mut archive = Archive::new(archive_file);
             archive.unpack(&runtime_dir)
                 .map_err(|error| format!("No se pudieron instalar las dependencias Rich Presence: {error}"))?;
         }
