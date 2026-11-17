@@ -144,10 +144,12 @@ function App() {
     });
 
     const statusTimer = window.setInterval(() => void refreshBridgeStatus(), 2500);
+    const dataTimer = window.setInterval(() => void reloadData(), 15000);
     return () => {
       mounted = false;
       unlisten?.();
       window.clearInterval(statusTimer);
+      window.clearInterval(dataTimer);
     };
   }, []);
 
