@@ -36,17 +36,24 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Install Rich Presence bridge dependencies
-        run: npm install --prefix rich-presence-helper --omit=dev
+      - name: Install Rich Presence bridge dependencies outside repository
+        shell: pwsh
+        run: |
+          $helperRuntime = Join-Path $env:RUNNER_TEMP "SteamTrackerHelper"
+          New-Item -ItemType Directory -Force -Path $helperRuntime | Out-Null
+          Copy-Item "rich-presence-helper/package.json" "$helperRuntime/package.json" -Force
+          Copy-Item "rich-presence-helper/index.cjs" "$helperRuntime/index.cjs" -Force
+          npm install --prefix "$helperRuntime" --omit=dev
 
       - name: Bundle private Rich Presence runtime
         shell: pwsh
         run: |
+          $helperRuntime = Join-Path $env:RUNNER_TEMP "SteamTrackerHelper"
           $destination = "src-tauri/resources/rich-presence-helper"
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
-          Copy-Item "rich-presence-helper/index.cjs" "$destination/index.cjs" -Force
+          Copy-Item "$helperRuntime/index.cjs" "$destination/index.cjs" -Force
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
-          tar -cf "$destination/node_modules.tar" -C "rich-presence-helper" "node_modules"
+          tar -cf "$destination/node_modules.tar" -C "$helperRuntime" "node_modules"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem $destination | Select-Object Name,Length
 
