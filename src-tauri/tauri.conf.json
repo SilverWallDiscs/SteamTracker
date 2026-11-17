@@ -24,5 +24,17 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": ["resources/*"],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "languages": ["Spanish", "English"],
+        "installMode": "currentUser"
+      }
+    }
+  }
 }
