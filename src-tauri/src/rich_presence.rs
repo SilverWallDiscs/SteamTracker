@@ -100,7 +100,14 @@ impl RichPresenceBridge {
     }
 
     pub async fn start_login(&self) -> Result<Value, String> {
-        let response = self.request("/login/start").json(&json!({}))
+        let base = self.inner.base_url.as_deref()
+            .ok_or_else(|| self.inner.init_error.clone().unwrap_or_else(|| {
+                "El puente Steam no está disponible.".to_string()
+            }))?;
+        let response = self.inner.client
+            .post(format!("{base}/login/start"))
+            .header("x-steamtracker-secret", &self.inner.secret)
+            .json(&json!({}))
             .send().await
             .map_err(|error| format!("No se pudo iniciar el inicio de sesión Steam: {error}"))?
             .error_for_status()
