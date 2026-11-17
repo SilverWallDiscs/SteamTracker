@@ -10,3 +10,5 @@ src-tauri/gen/
 *.sqlite
 *.sqlite3
 *.db
+rich-presence-helper/node_modules/
+src-tauri/resources/
