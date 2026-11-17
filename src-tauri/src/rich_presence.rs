@@ -132,6 +132,11 @@ impl RichPresenceBridge {
             return Ok(json!({ "appId": APP_ID, "users": {} }));
         }
 
+        if self.inner.base_url.is_none() {
+            return Err(self.inner.init_error.clone().unwrap_or_else(|| {
+                "El runtime Rich Presence no está disponible. Reinstala SteamTracker.".into()
+            }));
+        }
         let response = self.request("/presence")
             .json(&json!({ "appId": APP_ID, "steamIds": ids }))
             .send().await
@@ -158,9 +163,11 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
         .map_err(|error| format!("No se pudo resolver la carpeta de recursos: {error}"))?;
     let bundled_dir = resource_dir.join("rich-presence-helper");
 
-    let (node, script_path, runtime_dir) = if bundled_dir.join("node.exe").is_file()
-        && bundled_dir.join("node_modules.tar").is_file()
-        && bundled_dir.join("index.cjs").is_file()
+    let has_node = bundled_dir.join("node.exe").is_file();
+    let has_modules = bundled_dir.join("node_modules.tar").is_file();
+    let has_script = bundled_dir.join("index.cjs").is_file();
+
+    let (node, script_path, runtime_dir) = if has_node && has_modules && has_script
     {
         let app_data = app.path().app_data_dir()
             .map_err(|error| format!("No se pudo resolver la carpeta de datos: {error}"))?;
@@ -187,7 +194,13 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
     } else if source_script.is_file() && source_node_modules.is_dir() {
         (PathBuf::from("node"), source_script, manifest_dir.join("../rich-presence-helper"))
     } else {
-        return Err("No se encontró el runtime Rich Presence. Vuelve a instalar SteamTracker.".into());
+        return Err(format!(
+            "No se encontró el runtime Rich Presence en {} (node.exe: {}, node_modules.tar: {}, index.cjs: {}). Reinstala SteamTracker.",
+            bundled_dir.display(),
+            has_node,
+            has_modules,
+            has_script
+        ));
     };
 
     let mut child = Command::new(node)
@@ -196,7 +209,7 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
         .env("STEAMTRACKER_BRIDGE_SECRET", secret)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("No se pudo iniciar el puente Rich Presence: {error}"))?;
 
@@ -206,6 +219,23 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
     let mut line = String::new();
     reader.read_line(&mut line)
         .map_err(|error| format!("No se pudo iniciar el puente Rich Presence: {error}"))?;
+
+    if line.trim().is_empty() {
+        let mut child = child;
+        let stderr = child.stderr.take().map(|mut pipe| {
+            use std::io::Read;
+            let mut message = String::new();
+            let _ = pipe.read_to_string(&mut message);
+            message
+        }).unwrap_or_default();
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(if stderr.trim().is_empty() {
+            "El runtime Rich Presence terminó antes de iniciar el servidor local.".into()
+        } else {
+            format!("El runtime Rich Presence no pudo iniciar: {}", stderr.trim())
+        });
+    }
 
     let ready: Value = serde_json::from_str(&line)
         .map_err(|_| "El puente Rich Presence no devolvió una confirmación válida.".to_string())?;
