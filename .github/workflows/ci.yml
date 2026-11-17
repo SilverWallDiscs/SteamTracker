@@ -55,29 +55,36 @@ jobs:
           $helperRuntime = (Resolve-Path $helperRuntime).Path
           Copy-Item "$helperRuntime/index.cjs" "$destination/index.cjs" -Force
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
-          $modulesSource = Join-Path $helperRuntime "node_modules"
-          if (-not (Test-Path (Join-Path $modulesSource "steam-session/package.json"))) {
-            throw "npm did not install steam-session into the Rich Presence runtime"
-          }
-          if (-not (Test-Path (Join-Path $modulesSource "steam-user/package.json"))) {
-            throw "npm did not install steam-user into the Rich Presence runtime"
-          }
-          $modulesDestination = Join-Path $destination "node_modules"
-          New-Item -ItemType Directory -Force -Path $modulesDestination | Out-Null
-          & robocopy.exe $modulesSource $modulesDestination /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
-          $copyExitCode = $LASTEXITCODE
-          if ($copyExitCode -ge 8) {
-            throw "Failed to copy Rich Presence node_modules (robocopy exit $copyExitCode)"
-          }
-          $global:LASTEXITCODE = 0
-          foreach ($required in @("node.exe", "index.cjs")) {
-            if (-not (Test-Path (Join-Path $destination $required))) {
-              throw "Missing bundled Rich Presence runtime file: $required"
+
+          $archive = Join-Path $env:RUNNER_TEMP "SteamTrackerNodeModules.tar"
+          if (Test-Path $archive) { Remove-Item $archive -Force }
+          & tar.exe -cf $archive -C $helperRuntime "node_modules"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to archive Rich Presence dependencies (exit $LASTEXITCODE)" }
+
+          $verifyRoot = Join-Path $env:RUNNER_TEMP "SteamTrackerNodeModulesCheck"
+          if (Test-Path $verifyRoot) { Remove-Item $verifyRoot -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $verifyRoot | Out-Null
+          & tar.exe -xf $archive -C $verifyRoot
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract Rich Presence dependency archive" }
+
+          foreach ($required in @("steam-session/package.json", "steam-user/package.json")) {
+            if (-not (Test-Path (Join-Path $verifyRoot "node_modules/$required"))) {
+              throw "Dependency archive is missing $required"
             }
           }
-          foreach ($required in @("steam-session/package.json", "steam-user/package.json")) {
-            if (-not (Test-Path (Join-Path $destination "node_modules/$required"))) {
-              throw "Missing bundled Rich Presence dependency: $required"
+
+          Push-Location $verifyRoot
+          try {
+            & (Get-Command node).Source -e "require('steam-session'); require('steam-user'); console.log('Rich Presence modules loaded successfully')"
+            if ($LASTEXITCODE -ne 0) { throw "Node.js could not load the archived Rich Presence modules" }
+          } finally {
+            Pop-Location
+          }
+
+          Copy-Item $archive (Join-Path $destination "node_modules.tar") -Force
+          foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
+            if (-not (Test-Path (Join-Path $destination $required))) {
+              throw "Missing bundled Rich Presence runtime file: $required"
             }
           }
           Get-ChildItem $destination | Select-Object Name,Length
@@ -89,25 +96,25 @@ jobs:
         shell: pwsh
         run: |
           $runtime = "src-tauri/target/release/rich-presence-helper"
-          foreach ($required in @("node.exe", "index.cjs")) {
+          foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
             if (-not (Test-Path (Join-Path $runtime $required))) {
               throw "The Tauri bundle is missing Rich Presence file: $required in $runtime"
             }
           }
+          $archiveCheck = Join-Path $env:RUNNER_TEMP "SteamTrackerPackagedModulesCheck"
+          if (Test-Path $archiveCheck) { Remove-Item $archiveCheck -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $archiveCheck | Out-Null
+          & tar.exe -xf (Join-Path $runtime "node_modules.tar") -C $archiveCheck
+          if ($LASTEXITCODE -ne 0) { throw "The packaged Rich Presence archive could not be extracted" }
           foreach ($required in @("steam-session/package.json", "steam-user/package.json")) {
-            if (-not (Test-Path (Join-Path $runtime "node_modules/$required"))) {
-              throw "The Tauri bundle is missing Rich Presence dependency: $required"
+            if (-not (Test-Path (Join-Path $archiveCheck "node_modules/$required"))) {
+              throw "The packaged archive is missing $required"
             }
           }
-          Write-Host "Verified Rich Presence runtime and dependency packages in $runtime"
-          (Get-Item (Join-Path $runtime "node_modules/steam-session/package.json")).FullName
-          (Get-Item (Join-Path $runtime "node_modules/steam-user/package.json")).FullName
-          Push-Location $runtime
+          Push-Location $archiveCheck
           try {
-            & ".\\node.exe" -e "require('steam-session'); require('steam-user'); console.log('Rich Presence modules loaded successfully')"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Bundled Node.js could not load steam-session and steam-user"
-            }
+            & (Join-Path $runtime "node.exe") -e "require('steam-session'); require('steam-user'); console.log('Packaged Rich Presence modules loaded successfully')"
+            if ($LASTEXITCODE -ne 0) { throw "Packaged Node.js could not load the Rich Presence modules" }
           } finally {
             Pop-Location
           }
