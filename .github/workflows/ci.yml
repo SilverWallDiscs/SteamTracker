@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: steamtracker-windows-build
+  cancel-in-progress: true
+
 jobs:
   windows-build:
     runs-on: windows-latest
