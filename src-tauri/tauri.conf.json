@@ -34,9 +34,9 @@
     "icon": [
       "icons/icon.ico"
     ],
-    "resources": [
-      "resources/rich-presence-helper/"
-    ],
+    "resources": {
+      "resources/rich-presence-helper/": "rich-presence-helper/"
+    },
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
