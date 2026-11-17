@@ -95,6 +95,15 @@ jobs:
           Write-Host "Verified Rich Presence runtime and dependency packages in $runtime"
           (Get-Item (Join-Path $runtime "node_modules/steam-session/package.json")).FullName
           (Get-Item (Join-Path $runtime "node_modules/steam-user/package.json")).FullName
+          Push-Location $runtime
+          try {
+            & ".\\node.exe" -e "require('steam-session'); require('steam-user'); console.log('Rich Presence modules loaded successfully')"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Bundled Node.js could not load steam-session and steam-user"
+            }
+          } finally {
+            Pop-Location
+          }
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
