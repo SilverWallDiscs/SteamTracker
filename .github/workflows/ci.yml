@@ -46,7 +46,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
           Copy-Item "rich-presence-helper/index.cjs" "$destination/index.cjs" -Force
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
-          tar -czf "$destination/node_modules.tar.gz" -C "rich-presence-helper" "node_modules"
+          tar -cf "$destination/node_modules.tar" -C "rich-presence-helper" "node_modules"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem $destination | Select-Object Name,Length
 
