@@ -1,66 +1,43 @@
-# Architecture and monitoring model
+# Architecture and validation notes
 
-## Target types
+## Basic Steam presence
 
-SteamTracker supports multiple independent targets. The target type controls which data sources are expected, not whether the profile can be added.
+The Rust monitor uses Steam Web API methods to resolve profile vanity URLs and fetch player summaries. It polls tracked Steam IDs every 30 seconds and detects transitions for persona online/offline state and current game. The tracked target list is stored under the application's local data directory.
 
-- **Steam friend**: basic Web API monitoring plus an attempt to read friend Rich Presence through a dedicated Steam integration when available.
-- **Public profile / non-friend**: basic Web API monitoring only. Rich Presence may be unavailable; Steamworks documents a limited request path for users in the same lobby or game server, so the app must not assume arbitrary non-friends can be queried.
+The Steam Web API key is stored using the OS credential store (Windows Credential Manager on Windows). A target can be a Steam friend or a public non-friend profile; basic monitoring is subject to that profile's privacy settings.
 
-The first-use setup can contain both a Steam friend and a public trader profile. The trader can be followed without adding them as a Steam friend.
+## Rich Presence for ARC Raiders
 
-## Implemented in the early MVP
+The frontend authenticates a separate local Steam client session using `steam-session` QR login. The user approves the login inside Steam Mobile with Steam Guard. The resulting refresh token is stored in the OS credential store; no Steam password is requested or persisted.
 
-- Tauri 2 desktop shell with a Windows system-tray menu.
-- Closing the main window hides it instead of exiting the background process.
-- Steam Web API key is stored via the OS credential store (Windows Credential Manager on Windows).
-- Add profiles by Steam ID64, custom vanity name, or Steam Community profile URL.
-- Store the tracked profile list locally in the app data directory.
-- Poll GetPlayerSummaries every 30 seconds and detect online/offline changes, game start/end, and game switches.
-- Send native notifications for detected transitions and keep a short in-window event list.
+The helper uses `steam-user` and the Steam client protocol to request Rich Presence for ARC Raiders App ID `1808500`. Its `requestRichPresence(appID, steamIDs, callback)` method can query users who are not on the local friends list. Raw key/value data and the localized string are returned to the UI.
 
-## Data sources and privacy
+The initial UI classifier recognizes words resembling:
 
-### Basic presence
+- `In Speranza`
+- `In Queue`
+- `In Round`
 
-Use Steam Web API ISteamUser/GetPlayerSummaries to read public persona state and current game information. Resolve vanity profile URLs with ISteamUser/ResolveVanityURL where needed.
+The classifier is deliberately heuristic. The exact ARC Raiders Rich Presence keys and values have not yet been verified against the user's live sessions. The raw response panel is included so the states can be confirmed and the parser refined from observed data rather than guesses.
 
-This data is subject to Steam profile and game-details privacy. A missing player or game field must not be interpreted as proof that the person is offline or not playing.
+## Local bridge and security
 
-### Rich Presence (experimental, not implemented yet)
+- Helper HTTP server binds only to `127.0.0.1`.
+- Each app launch creates a cryptographically random bridge secret.
+- Requests include that secret in a header and are rejected otherwise.
+- Steam refresh tokens are stored using the operating system's credential store.
+- Node runtime and dependencies are bundled with the Windows installer.
+- The Rust process extracts the dependency archive into app-local data on first launch and starts the bundled Node executable.
 
-Steamworks ISteamFriends exposes Rich Presence key/value methods, including GetFriendRichPresence, GetFriendRichPresenceKeyCount, GetFriendRichPresenceKeyByIndex, and RequestFriendRichPresence.
+## Windows lifecycle
 
-The public Web API path implemented in the MVP does not return the full Rich Presence key/value data. Any Steamworks-based provider must be tested with a real Steam client session and must not require Steam account passwords or automate a user's login.
+The Tauri window hides when closed, leaving the monitor active in the system tray. Left-click the tray icon or choose Open from the menu to show the window; choose Quit to terminate the app.
 
-For ARC Raiders, first capture the actual keys and values that Steam exposes for a real friend session. Only then add a parser that classifies observed values into user-facing states such as:
+## Validation checklist
 
-- In Speranza
-- In Queue
-- In Round
-
-Do not hard-code guesses about the game's internal keys or values. Preserve unknown values for diagnostics, with sensitive data kept local.
-
-## Event model
-
-Current transitions:
-
-- WentOnline
-- WentOffline
-- GameStarted
-- GameEnded
-- GameChanged
-
-Planned transition:
-
-- RichPresenceChanged
-
-Emit a notification only when a meaningful transition occurs. The first successful poll is used as a baseline and does not generate a burst of notifications.
-
-## Remaining work
-
-1. Run the Windows CI build and fix any compiler issues it reveals.
-2. Test the Web API flow with a real friend profile and a public non-friend trader profile.
-3. Investigate a safe Steamworks Rich Presence provider and verify ARC Raiders' raw values.
-4. Add per-profile notification preferences, configurable polling, and notification permission settings.
-5. Add SQLite event history, startup-on-login, installer packaging, and polished tray interactions.
+1. Install the Windows build and add a Steam Web API key.
+2. Add the Steam friend and the public trader by profile URL or SteamID64.
+3. Connect the local Steam session with the QR code and approve it inside Steam Mobile.
+4. Observe each profile while launching ARC Raiders and moving between Speranza, Queue, and a round.
+5. Use “Ver datos Rich Presence recibidos” to inspect the exact keys and values returned by Steam.
+6. Refine the classifier if the raw values differ from the initial text heuristics.
