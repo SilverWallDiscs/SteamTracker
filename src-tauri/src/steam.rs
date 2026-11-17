@@ -221,12 +221,15 @@ async fn resolve_steam_id(
                 .query(&[("key", api_key), ("vanityurl", vanity.as_str())])
                 .send()
                 .await
-                .map_err(|error| format!("No se pudo conectar con Steam: {error}"))?
-                .error_for_status()
-                .map_err(|error| format!("Steam rechazó la consulta: {error}"))?
+                .map_err(|_| "No se pudo conectar con Steam.".to_string())?;
+            let status = response.status();
+            if !status.is_success() {
+                return Err(format!("Steam respondió con HTTP {status}."));
+            }
+            let response = response
                 .json::<ResolveEnvelope>()
                 .await
-                .map_err(|error| format!("Steam devolvió una respuesta inválida: {error}"))?;
+                .map_err(|_| "Steam devolvió una respuesta inválida.".to_string())?;
 
             if response.response.success != 1 {
                 return Err(response
@@ -258,12 +261,15 @@ async fn fetch_summaries(
         .query(&[("key", api_key), ("steamids", joined_ids.as_str())])
         .send()
         .await
-        .map_err(|error| format!("No se pudo conectar con Steam: {error}"))?
-        .error_for_status()
-        .map_err(|error| format!("Steam rechazó la consulta: {error}"))?
+        .map_err(|_| "No se pudo conectar con Steam.".to_string())?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Steam respondió con HTTP {status}."));
+    }
+    let response = response
         .json::<SummariesEnvelope>()
         .await
-        .map_err(|error| format!("Steam devolvió una respuesta inválida: {error}"))?;
+        .map_err(|_| "Steam devolvió una respuesta inválida.".to_string())?;
 
     Ok(response.response.players)
 }
