@@ -54,8 +54,8 @@ fn main() {
         .manage(MonitorState::default())
         .setup(|app| {
             let open_item =
-                MenuItem::with_id(app, "open", "Open SteamTracker", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                MenuItem::with_id(app, "open", "Abrir SteamTracker", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_item, &quit_item])?;
 
             TrayIconBuilder::new()
