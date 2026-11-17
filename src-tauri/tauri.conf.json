@@ -35,7 +35,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/rich-presence-helper/**/*": "rich-presence-helper/"
+      "resources/rich-presence-helper/node.exe": "rich-presence-helper/node.exe",
+      "resources/rich-presence-helper/index.cjs": "rich-presence-helper/index.cjs",
+      "resources/rich-presence-helper/node_modules.tar": "rich-presence-helper/node_modules.tar"
     },
     "windows": {
       "nsis": {
