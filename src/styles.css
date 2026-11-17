@@ -246,3 +246,27 @@ footer { margin-top: 28px; color: #667587; font-size: 8px; gap: 16px; }
   .qr-wrap { align-self: flex-start; }
   .bridge-connected .secondary-button { align-self: flex-start; }
 }
+
+
+.notification-test-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+.secondary-button {
+  border: 1px solid #3b6582;
+  border-radius: 8px;
+  color: #b8def6;
+  background: #172b3b;
+  padding: 10px 13px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.secondary-button:hover { background: #1d3a50; border-color: #5b9bc4; }
+.notification-status {
+  color: #83c9a4;
+  font-size: 10px;
+  line-height: 1.5;
+}
