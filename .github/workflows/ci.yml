@@ -31,6 +31,19 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Install Rich Presence bridge dependencies
+        run: npm install --prefix rich-presence-helper --omit=dev
+
+      - name: Bundle private Rich Presence runtime
+        shell: pwsh
+        run: |
+          $destination = "src-tauri/resources/rich-presence-helper"
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+          Copy-Item "rich-presence-helper/index.cjs" "$destination/index.cjs" -Force
+          Copy-Item "rich-presence-helper/node_modules" "$destination/node_modules" -Recurse -Force
+          $nodeExecutable = (Get-Command node).Source
+          Copy-Item $nodeExecutable "$destination/node.exe" -Force
+
       - name: Build Windows installer
         run: npm run tauri -- build
 
