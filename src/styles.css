@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+:root {
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  color: #e9edf4;
+  background: #0d1118;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+.app-shell { width: min(100%, 1120px); margin: 0 auto; padding: 34px 42px 24px; }
+.topbar, .brand, .connection-state, .panel-heading, footer {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.brand { justify-content: flex-start; gap: 12px; }
+.brand-mark {
+  width: 42px; height: 42px; display: grid; place-items: center;
+  border-radius: 12px; background: #182b40; color: #83c8ff;
+  font-weight: 800; font-size: 22px; border: 1px solid #274662;
+}
+.brand-name { font-size: 16px; font-weight: 800; letter-spacing: -.4px; }
+.brand-caption { margin-top: 3px; color: #75869a; font-size: 9px; }
+.brand-caption, .eyebrow, .card-kicker, .status-label, .count-pill, .connection-state, footer {
+  font-family: "DM Mono", monospace; letter-spacing: .09em;
+}
+.connection-state { gap: 9px; color: #8290a2; font-size: 10px; }
+.state-dot { width: 7px; height: 7px; border-radius: 100%; background: #687789; }
+.intro { padding: 76px 0 52px; max-width: 650px; }
+.eyebrow { color: #61b8f3; font-size: 10px; }
+h1 { margin: 17px 0 15px; font-size: clamp(38px, 6vw, 64px); line-height: 1.05; letter-spacing: -3px; }
+h1 span { color: #7fc8fb; }
+.intro p { max-width: 560px; color: #9aa8b8; font-size: 14px; line-height: 1.8; }
+.setup-panel {
+  border: 1px solid #263342; border-radius: 16px;
+  background: linear-gradient(140deg, #151e29, #111821 72%); padding: 25px 28px 28px;
+}
+.panel-heading h2 { margin: 7px 0 0; font-size: 19px; letter-spacing: -.5px; }
+.count-pill { border: 1px solid #344456; border-radius: 999px; padding: 7px 11px; color: #9aaabc; font-size: 9px; }
+.empty-state { text-align: center; padding: 37px 12px 24px; }
+.empty-icon {
+  margin: 0 auto 13px; width: 46px; height: 46px; display: grid; place-items: center;
+  border-radius: 14px; border: 1px solid #30465a; background: #172638; color: #7fc8fb; font-size: 25px;
+}
+.empty-state h3 { margin: 0 0 8px; font-size: 15px; }
+.empty-state p { max-width: 510px; margin: 0 auto; color: #8493a4; font-size: 12px; line-height: 1.7; }
+.capability-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+.capability-card { min-height: 178px; border: 1px solid #263342; border-radius: 14px; padding: 21px 22px; background: #121923; }
+.accent-card { background: linear-gradient(140deg, #152536, #121923 74%); border-color: #2a4a64; }
+.card-kicker { color: #7b8fa3; font-size: 9px; }
+.accent-card .card-kicker { color: #73b8e8; }
+.capability-card h3 { font-size: 16px; margin: 13px 0 8px; }
+.capability-card p { color: #8f9eae; font-size: 11px; line-height: 1.7; margin: 0 0 15px; }
+.status-label { color: #8b9bac; font-size: 8px; }
+.accent-card .status-label { color: #80c8f9; }
+footer { margin-top: 28px; color: #667587; font-size: 8px; gap: 16px; }
+.footer-separator { color: #3f607c; margin: 0 5px; }
+@media (max-width: 700px) {
+  .app-shell { padding: 24px 19px; }
+  .intro { padding: 58px 0 37px; }
+  .capability-grid { grid-template-columns: 1fr; }
+  .connection-state { font-size: 8px; }
+  footer { align-items: flex-start; flex-direction: column; }
+}
