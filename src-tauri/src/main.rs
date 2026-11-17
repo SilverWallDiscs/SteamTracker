@@ -11,6 +11,21 @@ use tauri::{
     WindowEvent,
 };
 use steam::MonitorState;
+use tauri_plugin_notification::NotificationExt;
+
+#[tauri::command]
+fn send_desktop_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|error| format!("Windows no pudo mostrar la notificación: {error}"))
+}
 
 fn tray_icon() -> Image<'static> {
     let mut rgba = vec![0_u8; 16 * 16 * 4];
@@ -118,6 +133,7 @@ fn main() {
             steam::get_snapshots,
             steam::add_target,
             steam::remove_target,
+            send_desktop_notification,
             rich_presence::rich_presence_start_login,
             rich_presence::rich_presence_status,
             rich_presence::rich_presence_query,
