@@ -111,9 +111,10 @@ jobs:
               throw "The packaged archive is missing $required"
             }
           }
+          $nodeExe = (Resolve-Path (Join-Path $runtime "node.exe")).Path
           Push-Location $archiveCheck
           try {
-            & (Join-Path $runtime "node.exe") -e "require('steam-session'); require('steam-user'); console.log('Packaged Rich Presence modules loaded successfully')"
+            & $nodeExe -e "require('steam-session'); require('steam-user'); console.log('Packaged Rich Presence modules loaded successfully')"
             if ($LASTEXITCODE -ne 0) { throw "Packaged Node.js could not load the Rich Presence modules" }
           } finally {
             Pop-Location
