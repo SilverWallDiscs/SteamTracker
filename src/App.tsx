@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import QRCode from "qrcode";
 import {
   isPermissionGranted,
   requestPermission,
@@ -32,6 +33,37 @@ type SteamEvent = {
   message: string;
   eventType: string;
 };
+type BridgeStatus = {
+  phase: string;
+  accountName?: string | null;
+  steamId?: string | null;
+  qrUrl?: string | null;
+  lastError?: string | null;
+};
+type RichUser = {
+  richPresence?: Record<string, string>;
+  localizedString?: string | null;
+};
+type RichResponse = {
+  appId: number;
+  users: Record<string, RichUser>;
+};
+type RichPresenceView = RichUser & {
+  stateLabel: string;
+  observedAt: number;
+};
+
+function classifyPresence(presence: RichUser): string {
+  const raw = [
+    presence.localizedString || "",
+    ...Object.entries(presence.richPresence || {}).flatMap(([key, value]) => [key, value]),
+  ].join(" ").toLocaleLowerCase();
+
+  if (raw.includes("speranza")) return "In Speranza";
+  if (/(\bqueue\b|matchmaking|searching for match|waiting for players)/i.test(raw)) return "In Queue";
+  if (/(\bin round\b|in raid|in expedition|round started|active round)/i.test(raw)) return "In Round";
+  return presence.localizedString || "Rich Presence disponible (estado sin clasificar)";
+}
 
 function App() {
   const [apiKeyExists, setApiKeyExists] = useState(false);
@@ -46,6 +78,12 @@ function App() {
   const [addingTarget, setAddingTarget] = useState(false);
   const [error, setError] = useState("");
   const [recentEvents, setRecentEvents] = useState<SteamEvent[]>([]);
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>({ phase: "checking" });
+  const [qrImage, setQrImage] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [richPresence, setRichPresence] = useState<Record<string, RichPresenceView>>({});
+  const [lastRichCheck, setLastRichCheck] = useState<number | null>(null);
+  const previousRichState = useRef<Record<string, string>>({});
 
   async function reloadData() {
     try {
@@ -64,10 +102,29 @@ function App() {
     }
   }
 
+  async function refreshBridgeStatus() {
+    try {
+      const status = await invoke<BridgeStatus>("rich_presence_status");
+      setBridgeStatus(status);
+      if (status.phase === "connected") setQrImage("");
+      if (status.qrUrl) {
+        const image = await QRCode.toDataURL(status.qrUrl, {
+          width: 230,
+          margin: 1,
+          errorCorrectionLevel: "M",
+        });
+        setQrImage(image);
+      }
+    } catch (cause) {
+      setBridgeStatus({ phase: "unavailable", lastError: String(cause) });
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
     let unlisten: (() => void) | undefined;
     void reloadData();
+    void refreshBridgeStatus();
 
     listen<SteamEvent>("steamtracker:event", ({ payload }) => {
       setRecentEvents((current) => [payload, ...current].slice(0, 5));
@@ -86,11 +143,71 @@ function App() {
       else stopListening();
     });
 
+    const statusTimer = window.setInterval(() => void refreshBridgeStatus(), 2500);
     return () => {
       mounted = false;
       unlisten?.();
+      window.clearInterval(statusTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (bridgeStatus.phase !== "connected" || targets.length === 0) {
+      setRichPresence({});
+      return;
+    }
+
+    let active = true;
+    const queryPresence = async () => {
+      try {
+        const result = await invoke<RichResponse>("rich_presence_query", {
+          steamIds: targets.map((target) => target.steamId),
+        });
+        if (!active) return;
+
+        const next: Record<string, RichPresenceView> = {};
+        for (const [steamId, value] of Object.entries(result.users || {})) {
+          const view = {
+            ...value,
+            stateLabel: classifyPresence(value),
+            observedAt: Date.now(),
+          };
+          next[steamId] = view;
+          const signature = JSON.stringify({
+            localizedString: value.localizedString || null,
+            richPresence: value.richPresence || {},
+          });
+          const previous = previousRichState.current[steamId];
+          if (previous && previous !== signature) {
+            const target = targets.find((item) => item.steamId === steamId);
+            const message = (target?.displayName || steamId) + ": " + view.stateLabel;
+            void (async () => {
+              try {
+                let permitted = await isPermissionGranted();
+                if (!permitted) permitted = (await requestPermission()) === "granted";
+                if (permitted) sendNotification({ title: "ARC Raiders · Rich Presence", body: message });
+              } catch (cause) {
+                console.error("No se pudo mostrar la notificación Rich Presence:", cause);
+              }
+            })();
+          }
+          previousRichState.current[steamId] = signature;
+        }
+
+        setRichPresence(next);
+        setLastRichCheck(Date.now());
+      } catch (cause) {
+        console.warn("Rich Presence no disponible:", cause);
+      }
+    };
+
+    void queryPresence();
+    const timer = window.setInterval(() => void queryPresence(), 15000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [bridgeStatus.phase, targets]);
 
   async function handleSaveKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,6 +249,40 @@ function App() {
     try {
       await invoke("remove_target", { steamId });
       await reloadData();
+    } catch (cause) {
+      setError(String(cause));
+    }
+  }
+
+  async function handleStartSteamLogin() {
+    setError("");
+    setLoginBusy(true);
+    setBridgeStatus({ phase: "starting" });
+    try {
+      const result = await invoke<{ qrUrl: string }>("rich_presence_start_login");
+      const image = await QRCode.toDataURL(result.qrUrl, {
+        width: 230,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+      setQrImage(image);
+      setBridgeStatus({ phase: "awaiting_approval", qrUrl: result.qrUrl });
+    } catch (cause) {
+      setError("No se pudo iniciar Steam Guard: " + String(cause));
+      await refreshBridgeStatus();
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  async function handleSteamLogout() {
+    setError("");
+    try {
+      await invoke("rich_presence_logout");
+      previousRichState.current = {};
+      setRichPresence({});
+      setQrImage("");
+      await refreshBridgeStatus();
     } catch (cause) {
       setError(String(cause));
     }
@@ -241,8 +392,8 @@ function App() {
               </button>
             </div>
             <p className="form-note">
-              El tipo de perfil no limita el seguimiento básico. Rich Presence avanzado se intentará
-              únicamente cuando Steam permita consultar esos datos.
+              El tipo de perfil no limita el seguimiento básico. Rich Presence se consulta mediante tu sesión Steam
+              cuando el perfil publica datos de ARC Raiders.
             </p>
           </form>
         )}
@@ -262,6 +413,7 @@ function App() {
           <div className="target-list">
             {targets.map((target) => {
               const snapshot = snapshots.find((item) => item.steamId === target.steamId);
+              const rich = richPresence[target.steamId];
               return (
                 <article className="target-row" key={target.steamId}>
                   <div className="avatar">
@@ -284,10 +436,24 @@ function App() {
                     ) : (
                       <span className="waiting-label">Esperando primera lectura</span>
                     )}
+                    {rich && (
+                      <span className="rich-state">
+                        {rich.stateLabel}
+                      </span>
+                    )}
                   </div>
                   <button className="remove-button" type="button" onClick={() => void handleRemoveTarget(target.steamId)} aria-label={"Quitar a " + target.displayName}>
                     ×
                   </button>
+                  {rich && (
+                    <details className="raw-presence">
+                      <summary>Ver datos Rich Presence recibidos</summary>
+                      <div className="raw-localized">
+                        {rich.localizedString || "Steam no devolvió un texto localizado para este perfil."}
+                      </div>
+                      <pre>{JSON.stringify(rich.richPresence || {}, null, 2)}</pre>
+                    </details>
+                  )}
                 </article>
               );
             })}
@@ -295,12 +461,68 @@ function App() {
         )}
       </section>
 
+      <section className="setup-panel rich-panel">
+        <div className="panel-heading">
+          <div>
+            <div className="eyebrow">ARC RAIDERS · APP ID 1808500</div>
+            <h2>Rich Presence de Steam</h2>
+          </div>
+          <span className={bridgeStatus.phase === "connected" ? "count-pill connected-pill" : "count-pill"}>
+            {bridgeStatus.phase === "connected" ? "STEAM CONECTADO" : bridgeStatus.phase === "awaiting_approval" ? "ESPERANDO CONFIRMACIÓN" : bridgeStatus.phase.toUpperCase()}
+          </span>
+        </div>
+
+        {bridgeStatus.phase === "connected" ? (
+          <div className="bridge-connected">
+            <div className="bridge-identity">
+              <span className="state-dot active" />
+              <div>
+                <strong>{bridgeStatus.accountName || "Cuenta Steam conectada"}</strong>
+                <span>{bridgeStatus.steamId || "Sesión autenticada mediante Steam Guard"}</span>
+              </div>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => void handleSteamLogout()}>
+              Desconectar Steam
+            </button>
+          </div>
+        ) : (
+          <div className="bridge-login">
+            <div className="bridge-copy">
+              <h3>Conecta tu cuenta para leer los estados extendidos</h3>
+              <p>
+                SteamTracker abrirá una sesión de cliente separada. Escanea el QR con Steam Mobile y confirma
+                el inicio de sesión. No se solicita ni almacena tu contraseña.
+              </p>
+              <button type="button" onClick={() => void handleStartSteamLogin()} disabled={loginBusy || bridgeStatus.phase === "starting"}>
+                {loginBusy || bridgeStatus.phase === "starting" ? "Generando QR..." : "Conectar con Steam mediante QR"}
+              </button>
+              {bridgeStatus.lastError && <p className="bridge-error">{bridgeStatus.lastError}</p>}
+            </div>
+            {qrImage && (
+              <div className="qr-wrap">
+                <img src={qrImage} alt="Código QR para iniciar sesión en Steam" />
+                <span>Escanéalo con la aplicación Steam</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="rich-legend">
+          <span>Estados reconocidos automáticamente: <strong>In Speranza</strong>, <strong>In Queue</strong>, <strong>In Round</strong>.</span>
+          <span>{lastRichCheck ? "Última consulta: " + new Date(lastRichCheck).toLocaleTimeString() : "Esperando datos de Steam..."}</span>
+        </div>
+        <p className="form-note">
+          La clasificación busca esas palabras en el texto localizado y los campos originales. Los valores sin clasificar
+          se conservan y aparecen en «Ver datos Rich Presence recibidos» para poder ajustar el detector tras tu prueba.
+        </p>
+      </section>
+
       {error && <div className="error-banner">{error}</div>}
 
       <section className="summary-strip">
         <div><strong>{targets.length}</strong><span>PERFILES SEGUIDOS</span></div>
         <div><strong>{onlineCount}</strong><span>EN LÍNEA</span></div>
-        <div><strong>30s</strong><span>INTERVALO DE CONSULTA</span></div>
+        <div><strong>30s</strong><span>INTERVALO ACTIVIDAD BÁSICA</span></div>
       </section>
 
       <section className="capability-grid">
@@ -311,16 +533,16 @@ function App() {
             Estado online, offline, juego actual y cambios de actividad mediante
             Steam Web API, sujeto a la privacidad del perfil.
           </p>
-          <span className="status-label">IMPLEMENTADO EN EL MONITOR</span>
+          <span className="status-label">ACTIVO</span>
         </article>
         <article className="capability-card accent-card">
-          <div className="card-kicker">02 / MÓDULO EXPERIMENTAL</div>
-          <h3>ARC Raiders Rich Presence</h3>
+          <div className="card-kicker">02 / RICH PRESENCE</div>
+          <h3>ARC Raiders</h3>
           <p>
-            Capturar los valores extendidos publicados por Steam y validarlos antes
-            de activar avisos de Speranza, Queue e In Round.
+            Solicitud de estado extendido cada 15 segundos para todos los perfiles seguidos,
+            incluidos los que no están en tu lista de amigos.
           </p>
-          <span className="status-label">PENDIENTE DE PRUEBA REAL</span>
+          <span className="status-label">LECTURA EXPERIMENTAL · CLASIFICADOR AJUSTABLE</span>
         </article>
       </section>
 
