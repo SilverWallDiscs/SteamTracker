@@ -170,6 +170,9 @@ fn extract_profile_identifier(input: &str) -> Result<ProfileIdentifier, String> 
     if input.is_empty() {
         return Err("Introduce un Steam ID o una URL de perfil.".into());
     }
+    let input = input.split('?').next().unwrap_or(input);
+    let input = input.split('#').next().unwrap_or(input);
+    let input = input.trim_end_matches('/');
 
     if input.chars().all(|character| character.is_ascii_digit()) && input.len() == 17 {
         return Ok(ProfileIdentifier::SteamId(input.to_string()));
@@ -462,4 +465,47 @@ fn now_unix() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_a_steam_id64() {
+        let parsed = extract_profile_identifier("76561198000000000").unwrap();
+        match parsed {
+            ProfileIdentifier::SteamId(value) => assert_eq!(value, "76561198000000000"),
+            ProfileIdentifier::Vanity(_) => panic!("Expected a Steam ID64"),
+        }
+    }
+
+    #[test]
+    fn extracts_a_vanity_name_from_profile_url() {
+        let parsed = extract_profile_identifier(
+            "https://steamcommunity.com/id/example-trader/"
+        ).unwrap();
+        match parsed {
+            ProfileIdentifier::Vanity(value) => assert_eq!(value, "example-trader"),
+            ProfileIdentifier::SteamId(_) => panic!("Expected a vanity name"),
+        }
+    }
+
+    #[test]
+    fn extracts_a_steam_id_from_profile_url_with_query() {
+        let parsed = extract_profile_identifier(
+            "https://steamcommunity.com/profiles/76561198000000000/?some=thing"
+        ).unwrap();
+        match parsed {
+            ProfileIdentifier::SteamId(value) => assert_eq!(value, "76561198000000000"),
+            ProfileIdentifier::Vanity(_) => panic!("Expected a Steam ID64"),
+        }
+    }
+
+    #[test]
+    fn maps_persona_states_to_labels() {
+        assert_eq!(persona_label(0), "Offline");
+        assert_eq!(persona_label(1), "Online");
+        assert_eq!(persona_label(2), "Ocupado");
+    }
 }
