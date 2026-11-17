@@ -1,14 +1,17 @@
 use keyring::Entry;
 use rand::{rngs::OsRng, RngCore};
+use flate2::read::GzDecoder;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::{
+    fs,
     io::{BufRead, BufReader},
     path::PathBuf,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
+use tar::Archive;
 use tauri::{AppHandle, Manager};
 
 const KEYRING_SERVICE: &str = "com.silverwalldiscs.steamtracker";
@@ -149,30 +152,49 @@ impl RichPresenceBridge {
 }
 
 fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
-    let resource_dir = app.path().resource_dir().ok();
-    let bundled_dir = resource_dir.as_ref().map(|path| path.join("rich-presence-helper"));
-    let bundled_script = bundled_dir.as_ref().map(|path| path.join("index.cjs"));
-    let bundled_node = bundled_dir.as_ref().map(|path| path.join("node.exe"));
-
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_script = manifest_dir.join("../rich-presence-helper/index.cjs");
+    let source_node_modules = manifest_dir.join("../rich-presence-helper/node_modules");
+    let resource_dir = app.path().resource_dir()
+        .map_err(|error| format!("No se pudo resolver la carpeta de recursos: {error}"))?;
+    let bundled_dir = resource_dir.join("rich-presence-helper");
 
-    let (node, script) = if let (Some(node), Some(script)) = (bundled_node, bundled_script) {
-        if node.is_file() && script.is_file() {
-            (node, script)
-        } else if source_script.is_file() {
-            (PathBuf::from("node"), source_script)
-        } else {
-            return Err("No se encontró el puente Rich Presence incluido en SteamTracker.".into());
+    let (node, script_path, runtime_dir) = if bundled_dir.join("node.exe").is_file()
+        && bundled_dir.join("node_modules.tar.gz").is_file()
+        && bundled_dir.join("index.cjs").is_file()
+    {
+        let app_data = app.path().app_data_dir()
+            .map_err(|error| format!("No se pudo resolver la carpeta de datos: {error}"))?;
+        let runtime_dir = app_data.join("rich-presence-runtime");
+        fs::create_dir_all(&runtime_dir)
+            .map_err(|error| format!("No se pudo preparar el entorno Rich Presence: {error}"))?;
+        let script_path = runtime_dir.join("index.cjs");
+        let modules_dir = runtime_dir.join("node_modules");
+
+        if !script_path.is_file() {
+            fs::copy(bundled_dir.join("index.cjs"), &script_path)
+                .map_err(|error| format!("No se pudo copiar el puente Rich Presence: {error}"))?;
         }
-    } else if source_script.is_file() {
-        (PathBuf::from("node"), source_script)
+
+        if !modules_dir.is_dir() {
+            let archive_file = fs::File::open(bundled_dir.join("node_modules.tar.gz"))
+                .map_err(|error| format!("No se pudo abrir las dependencias Rich Presence: {error}"))?;
+            let decoder = GzDecoder::new(archive_file);
+            let mut archive = Archive::new(decoder);
+            archive.unpack(&runtime_dir)
+                .map_err(|error| format!("No se pudieron instalar las dependencias Rich Presence: {error}"))?;
+        }
+
+        (bundled_dir.join("node.exe"), script_path, runtime_dir)
+    } else if source_script.is_file() && source_node_modules.is_dir() {
+        (PathBuf::from("node"), source_script, manifest_dir.join("../rich-presence-helper"))
     } else {
-        return Err("No se encontró Node.js ni el puente Rich Presence.".into());
+        return Err("No se encontró el runtime Rich Presence. Vuelve a instalar SteamTracker.".into());
     };
 
     let mut child = Command::new(node)
-        .arg(script)
+        .arg(script_path)
+        .current_dir(runtime_dir)
         .env("STEAMTRACKER_BRIDGE_SECRET", secret)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
