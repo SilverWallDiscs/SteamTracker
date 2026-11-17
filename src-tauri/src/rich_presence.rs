@@ -3,14 +3,12 @@ use rand::{rngs::OsRng, RngCore};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::{
-    fs,
     io::{BufRead, BufReader},
     path::PathBuf,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tar::Archive;
 use tauri::{AppHandle, Manager};
 
 const KEYRING_SERVICE: &str = "com.silverwalldiscs.steamtracker";
@@ -163,42 +161,27 @@ fn spawn_helper(app: &AppHandle, secret: &str) -> Result<(u16, Child), String> {
         .map_err(|error| format!("No se pudo resolver la carpeta de recursos: {error}"))?;
     let bundled_dir = resource_dir.join("rich-presence-helper");
 
-    let has_node = bundled_dir.join("node.exe").is_file();
-    let has_modules = bundled_dir.join("node_modules.tar").is_file();
-    let has_script = bundled_dir.join("index.cjs").is_file();
+    let bundled_node = bundled_dir.join("node.exe");
+    let bundled_script = bundled_dir.join("index.cjs");
+    let bundled_modules = bundled_dir.join("node_modules");
+    let has_node = bundled_node.is_file();
+    let has_modules = bundled_modules.join("steam-session/package.json").is_file()
+        && bundled_modules.join("steam-user/package.json").is_file();
+    let has_script = bundled_script.is_file();
 
-    let (node, script_path, runtime_dir) = if has_node && has_modules && has_script
-    {
-        let app_data = app.path().app_data_dir()
-            .map_err(|error| format!("No se pudo resolver la carpeta de datos: {error}"))?;
-        let runtime_dir = app_data.join("rich-presence-runtime");
-        fs::create_dir_all(&runtime_dir)
-            .map_err(|error| format!("No se pudo preparar el entorno Rich Presence: {error}"))?;
-        let script_path = runtime_dir.join("index.cjs");
-        let modules_dir = runtime_dir.join("node_modules");
-
-        if !script_path.is_file() {
-            fs::copy(bundled_dir.join("index.cjs"), &script_path)
-                .map_err(|error| format!("No se pudo copiar el puente Rich Presence: {error}"))?;
-        }
-
-        if !modules_dir.is_dir() {
-            let archive_file = fs::File::open(bundled_dir.join("node_modules.tar"))
-                .map_err(|error| format!("No se pudo abrir las dependencias Rich Presence: {error}"))?;
-            let mut archive = Archive::new(archive_file);
-            archive.unpack(&runtime_dir)
-                .map_err(|error| format!("No se pudieron instalar las dependencias Rich Presence: {error}"))?;
-        }
-
-        (bundled_dir.join("node.exe"), script_path, runtime_dir)
+    let (node, script_path, runtime_dir) = if has_node && has_modules && has_script {
+        // Run directly from the installed resource folder. This avoids stale or partial
+        // node_modules directories in AppData and guarantees Node resolves bundled modules.
+        (bundled_node, bundled_script, bundled_dir.clone())
     } else if source_script.is_file() && source_node_modules.is_dir() {
         (PathBuf::from("node"), source_script, manifest_dir.join("../rich-presence-helper"))
     } else {
         return Err(format!(
-            "No se encontró el runtime Rich Presence en {} (node.exe: {}, node_modules.tar: {}, index.cjs: {}). Reinstala SteamTracker.",
+            "No se encontró el runtime Rich Presence completo en {} (node.exe: {}, steam-session: {}, steam-user: {}, index.cjs: {}). Reinstala SteamTracker.",
             bundled_dir.display(),
             has_node,
-            has_modules,
+            bundled_modules.join("steam-session/package.json").is_file(),
+            bundled_modules.join("steam-user/package.json").is_file(),
             has_script
         ));
     };
