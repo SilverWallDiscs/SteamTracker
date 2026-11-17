@@ -1,0 +1,11 @@
+{
+  "name": "steamtracker-rich-presence",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local Steam client protocol bridge for SteamTracker",
+  "main": "index.cjs",
+  "dependencies": {
+    "steam-session": "1.9.4",
+    "steam-user": "5.3.0"
+  }
+}
