@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod steam;
+mod rich_presence;
 
 use tauri::{
     image::Image,
@@ -91,6 +92,12 @@ fn main() {
                 })
                 .build(app)?;
 
+            let bridge = rich_presence::RichPresenceBridge::start(app.handle());
+            app.manage(bridge.clone());
+            tauri::async_runtime::spawn(async move {
+                bridge.restore_saved_session().await;
+            });
+
             let monitor_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 steam::monitor_loop(monitor_app).await;
@@ -110,7 +117,11 @@ fn main() {
             steam::get_targets,
             steam::get_snapshots,
             steam::add_target,
-            steam::remove_target
+            steam::remove_target,
+            rich_presence::rich_presence_start_login,
+            rich_presence::rich_presence_status,
+            rich_presence::rich_presence_query,
+            rich_presence::rich_presence_logout
         ])
         .run(tauri::generate_context!())
         .expect("error while running SteamTracker");
