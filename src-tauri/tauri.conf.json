@@ -22,17 +22,28 @@
         "resizable": true
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
-    "resources": ["resources/rich-presence-helper/"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/rich-presence-helper/"
+    ],
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "languages": ["Spanish", "English"],
+        "languages": [
+          "Spanish",
+          "English"
+        ],
         "installMode": "currentUser"
       }
     }
