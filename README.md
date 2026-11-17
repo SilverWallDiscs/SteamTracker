@@ -1,32 +1,30 @@
 # SteamTracker
 
-A lightweight Windows desktop companion that tracks Steam presence and sends native desktop notifications from the system tray.
+A Windows desktop companion for monitoring Steam profiles and sending native notifications from the system tray.
 
-## Goals
+## Current features
 
-- Track multiple Steam profiles, including friends and public profiles that are not on the local friends list.
-- Detect online/offline changes and game start, game end, and game switches.
-- Offer an experimental Rich Presence path for friends, with ARC Raiders state parsing kept separate from the generic Steam monitor.
-- Run quietly from the Windows system tray and notify only about events the user enables.
-- Keep credentials and local tracking history on the user's machine.
+- Track multiple Steam profiles, including friends and public non-friend profiles.
+- Add a target with a SteamID64, custom vanity URL, or Steam Community profile URL.
+- Detect online/offline transitions, game start/end, and game changes through Steam Web API.
+- Authenticate a Steam client session with a QR code and Steam Guard confirmation.
+- Query Steam Rich Presence for ARC Raiders (App ID `1808500`) using `steam-user`, including profiles that are not on your friends list.
+- Display the raw Rich Presence map and localized text so the ARC Raiders state parser can be validated against real data.
+- Recognize initial text patterns for `In Speranza`, `In Queue`, and `In Round`; these labels are experimental until tested against real ARC Raiders sessions.
+- Keep the app in the system tray and send Windows desktop notifications.
+- Store the Steam Web API key and Rich Presence refresh token in the OS credential store.
 
-## Important Steam limitation
+## Security and privacy
 
-The public Steam Web API can provide basic profile and game activity when the target's privacy settings allow it. It does **not** expose the full friend Rich Presence key/value data needed to reliably identify details such as `Speranza`, `In Queue`, or `In Round`.
+SteamTracker never asks for or stores your Steam password. QR login is confirmed inside Steam Mobile. The Steam refresh token is stored using Windows Credential Manager. The local Rich Presence bridge binds only to loopback and requires a random per-run secret.
 
-Steamworks exposes `ISteamFriends::GetFriendRichPresence` for Rich Presence data and `RequestFriendRichPresence` for requesting it. Access to a non-friend is conditional (for example, when both users are in the same lobby or game server). SteamTracker will treat this as an experimental integration and will not claim ARC Raiders states are supported until the raw values have been verified against a real session.
+Target activity and history are not uploaded to a SteamTracker server. Basic Web API data remains subject to each target's Steam privacy settings. Rich Presence is requested through the authenticated local Steam client session.
 
-## Project status
+## Windows installer
 
-Early MVP. The app shell, system tray, secure API-key storage, profile management, Steam Web API polling, state transitions, and notification event pipeline are in place. The Windows CI workflow is included; the Rich Presence bridge and ARC Raiders-specific state parsing remain experimental work.
+GitHub Actions builds a Windows NSIS installer and bundles the Node runtime and helper dependencies, so Node.js does not need to be installed separately.
 
-## Planned stack
-
-- Rust for monitoring and state transitions.
-- Tauri 2 for the Windows desktop shell and system tray.
-- React + TypeScript for the interface.
-- SQLite for local event history and settings metadata.
-- Windows Credential Manager for the Steam Web API key.
+Open the latest successful build in [GitHub Actions](https://github.com/SilverWallDiscs/SteamTracker/actions), then download the `SteamTracker-Windows-x64` artifact.
 
 ## Development
 
@@ -34,7 +32,8 @@ Prerequisites: Rust, Node.js (LTS), and the Tauri 2 Windows build prerequisites.
 
 ```bash
 npm install
+npm install --prefix rich-presence-helper
 npm run tauri dev
 ```
 
-See [`docs/architecture.md`](docs/architecture.md) for the monitoring model and implementation boundaries.
+See [docs/architecture.md](docs/architecture.md) for implementation boundaries and validation notes.
