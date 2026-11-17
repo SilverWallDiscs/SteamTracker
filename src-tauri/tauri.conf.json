@@ -35,7 +35,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/rich-presence-helper/": "rich-presence-helper/"
+      "resources/rich-presence-helper/**/*": "rich-presence-helper/"
     },
     "windows": {
       "nsis": {
