@@ -183,7 +183,11 @@ async function getPresence(body) {
     const result = await new Promise((resolve, reject) => {
       steam.requestRichPresence(appId, steamIds, (error, response, users) => {
         if (error) return reject(error);
-        resolve({ response: response || null, users: users || {} });
+        const returnedUsers =
+          users ||
+          (response && typeof response === "object" && response.users) ||
+          {};
+        resolve({ response: response || null, users: returnedUsers });
       });
     });
     return { appId, ...result };
