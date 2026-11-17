@@ -55,12 +55,13 @@ jobs:
           $helperRuntime = (Resolve-Path $helperRuntime).Path
           Copy-Item "$helperRuntime/index.cjs" "$destination/index.cjs" -Force
           Copy-Item (Get-Command node).Source "$destination/node.exe" -Force
-          $archive = Join-Path $destination "node_modules.tar"
+          $archive = Join-Path $env:RUNNER_TEMP "SteamTrackerNodeModules.tar"
           if (Test-Path $archive) { Remove-Item $archive -Force }
           & tar.exe -cf $archive -C $helperRuntime "node_modules"
           if ($LASTEXITCODE -ne 0) { throw "Failed to archive Rich Presence dependencies (exit $LASTEXITCODE)" }
-          & tar.exe -tf $archive | Select-Object -First 5
+          & tar.exe -tf $archive *> $null
           if ($LASTEXITCODE -ne 0) { throw "The Rich Presence dependency archive is invalid" }
+          Copy-Item $archive (Join-Path $destination "node_modules.tar") -Force
           foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
             if (-not (Test-Path (Join-Path $destination $required))) {
               throw "Missing bundled Rich Presence runtime file: $required"
@@ -74,13 +75,21 @@ jobs:
       - name: Verify packaged Rich Presence runtime
         shell: pwsh
         run: |
-          $runtime = "src-tauri/target/release/resources/rich-presence-helper"
+          $searchRoot = "src-tauri/target/release"
+          $matches = @(Get-ChildItem $searchRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -in @("node.exe", "index.cjs", "node_modules.tar") })
+          $matches | Select-Object FullName,Length
+          $node = $matches | Where-Object Name -eq "node.exe" | Select-Object -First 1
+          if (-not $node) {
+            throw "The Tauri build did not stage node.exe in its resource directory under $searchRoot"
+          }
+          $runtime = $node.DirectoryName
           foreach ($required in @("node.exe", "index.cjs", "node_modules.tar")) {
             if (-not (Test-Path (Join-Path $runtime $required))) {
-              throw "The Tauri bundle is missing Rich Presence file: $required"
+              throw "The Tauri bundle is missing Rich Presence file: $required in $runtime"
             }
           }
-          Get-ChildItem $runtime | Select-Object Name,Length
+          Write-Host "Verified Rich Presence resource directory: $runtime"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
